@@ -1,8 +1,8 @@
 package com.vouchera.backend.enums;
 
 public enum VoucherStatus {
-    ACTIVE,
+    AVAILABLE,
     USED,
     EXPIRED,
-    REVOKED
+    CANCELLED
 }
