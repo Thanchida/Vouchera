@@ -5,7 +5,9 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import com.vouchera.backend.enums.AccountStatus;
 import com.vouchera.backend.enums.Role;
+import com.vouchera.backend.util.EmailNormalizer;
 
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -35,13 +37,14 @@ public class User {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "account_status", nullable = false)
+    private AccountStatus accountStatus;
     
     public User() {}
     
     public User(String email, String password, Role role, Company company) {
-        if (email == null || email.isBlank()) {
-            throw new IllegalArgumentException("Email cannot be blank");
-        }
         if (password == null || password.isBlank()) {
             throw new IllegalArgumentException("Password cannot be blank");
         }
@@ -49,10 +52,11 @@ public class User {
             throw new IllegalArgumentException("Role cannot be null");
         }
         
-        this.email = email.toLowerCase().trim();
+        setEmail(email);
         this.password = password;
         this.role = role;
         this.company = company;
+        this.accountStatus = AccountStatus.ACTIVE;
     }
 
     public boolean isAdmin() {
@@ -90,7 +94,7 @@ public class User {
     }
     
     public void setEmail(String email) {
-        this.email = email;
+        this.email = EmailNormalizer.normalize(email);
     }
     
     public String getPassword() {
@@ -123,5 +127,13 @@ public class User {
     
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public AccountStatus getAccountStatus() {
+        return accountStatus;
+    }
+
+    public void setAccountStatus(AccountStatus accountStatus) {
+        this.accountStatus = accountStatus;
     }
 }
