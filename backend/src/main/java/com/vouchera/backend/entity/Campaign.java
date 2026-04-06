@@ -1,12 +1,15 @@
 package com.vouchera.backend.entity;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.vouchera.backend.enums.CampaignStatus;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -48,8 +51,9 @@ public class Campaign {
     @JoinColumn(name = "company_id", nullable = false)
     private Company company;
 
-    @OneToMany(mappedBy = "campaign", fetch = FetchType.LAZY)
-    private List<VoucherType> voucherTypes;
+    @OneToMany(mappedBy = "campaign", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<VoucherType> voucherTypes = new ArrayList<>();
 
     @Column(nullable = false, name = "start_time")
     private LocalDateTime startTime;
