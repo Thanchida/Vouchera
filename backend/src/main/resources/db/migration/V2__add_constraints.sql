@@ -13,3 +13,6 @@ ALTER TABLE voucher_types
     ADD CONSTRAINT chk_voucher_discount CHECK (discount_percent BETWEEN 1 AND 100),
     ADD CONSTRAINT chk_voucher_quota_positive CHECK (total_quota > 0),
     ADD CONSTRAINT chk_voucher_remaining_valid CHECK (remaining_quota >= 0 AND remaining_quota <= total_quota);
+
+ALTER TABLE companies
+ADD CONSTRAINT uk_companies_name UNIQUE (name);

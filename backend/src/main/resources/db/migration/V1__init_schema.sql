@@ -1,6 +1,7 @@
 CREATE TABLE companies (
     id UUID PRIMARY KEY,
-    name VARCHAR(255) NOT NULL
+    name VARCHAR(255) NOT NULL,
+    company_status VARCHAR(20) NOT NULL
 );
 
 CREATE TABLE users (
@@ -10,6 +11,7 @@ CREATE TABLE users (
     role VARCHAR(50) NOT NULL,
     company_id UUID,
     created_at TIMESTAMP NOT NULL,
+    account_status VARCHAR(20) NOT NULL,
     CONSTRAINT fk_users_company FOREIGN KEY (company_id) REFERENCES companies(id)
 );
 
