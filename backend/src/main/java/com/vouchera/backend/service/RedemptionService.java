@@ -36,9 +36,9 @@ public class RedemptionService {
 		this.voucherTypeRepository = voucherTypeRepository;
 	}
 
-	public Redemption redeemCoupon(UUID userId, UUID voucherTypeId, LocalDateTime now) {
+	public Redemption redeemCoupon(User currentUser, UUID voucherTypeId, LocalDateTime now) {
 		LocalDateTime current = requireNow(now);
-		User user = getUserById(userId);
+		User user = currentUser;
 
 		VoucherType voucherType = voucherTypeRepository.findById(voucherTypeId)
 			.orElseThrow(() -> new NotFoundException("Voucher type not found"));
@@ -48,7 +48,7 @@ public class RedemptionService {
 			throw new IllegalStateException("Campaign is not active for redemption");
 		}
 
-		if (redemptionRepository.existsByUserIdAndVoucherTypeId(userId, voucherTypeId)) {
+		if (redemptionRepository.existsByUserIdAndVoucherTypeId(user.getId(), voucherTypeId)) {
 			throw new IllegalStateException("User has already redeemed this voucher type");
 		}
 
@@ -64,23 +64,23 @@ public class RedemptionService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<Redemption> getUserRedemptions(UUID userId) {
-		ensureUserExists(userId);
+	public List<Redemption> getUserRedemptions(UUID userId, User currentUser) {
+		ensureUserAccess(userId, currentUser);
 		return redemptionRepository.findByUserId(userId);
 	}
 
 	@Transactional(readOnly = true)
-	public List<Redemption> getUserRedemptionsByStatus(UUID userId, RedemptionStatus status) {
-		ensureUserExists(userId);
+	public List<Redemption> getUserRedemptionsByStatus(UUID userId, User currentUser, RedemptionStatus status) {
+		ensureUserAccess(userId, currentUser);
 		if (status == null) {
 			throw new BadRequestException("Redemption status is required");
 		}
 		return redemptionRepository.findByUserIdAndStatus(userId, status);
 	}
 
-	public Redemption markRedemptionUsed(UUID redemptionId, UUID actorUserId) {
+	public Redemption markRedemptionUsed(UUID redemptionId, User currentUser) {
 		Redemption redemption = getRedemptionById(redemptionId);
-		User actor = getUserById(actorUserId);
+		User actor = currentUser;
 
 		Campaign campaign = redemption.getVoucherType().getCampaign();
 		if (!actor.canManageCampaign(campaign)) {
@@ -91,20 +91,25 @@ public class RedemptionService {
 		return redemptionRepository.save(redemption);
 	}
 
-	public Redemption expireRedemption(UUID redemptionId) {
+	public Redemption expireRedemption(UUID redemptionId, User currentUser) {
 		Redemption redemption = getRedemptionById(redemptionId);
+		User actor = currentUser;
+
+		Campaign campaign = redemption.getVoucherType().getCampaign();
+		if (!actor.canManageCampaign(campaign)) {
+			throw new ForbiddenException("User is not allowed to expire this redemption");
+		}
+
 		redemption.markExpired();
 		return redemptionRepository.save(redemption);
 	}
 
-	private User getUserById(UUID userId) {
-		return userRepository.findById(userId)
-			.orElseThrow(() -> new NotFoundException("User not found"));
-	}
-
-	private void ensureUserExists(UUID userId) {
+	private void ensureUserAccess(UUID userId, User currentUser) {
 		if (!userRepository.existsById(userId)) {
 			throw new NotFoundException("User not found");
+		}
+		if (!currentUser.isAdmin() && !currentUser.getId().equals(userId)) {
+			throw new ForbiddenException("User is not allowed to access these redemptions");
 		}
 	}
 

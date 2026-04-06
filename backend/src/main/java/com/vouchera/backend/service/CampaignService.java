@@ -18,7 +18,6 @@ import com.vouchera.backend.exception.ForbiddenException;
 import com.vouchera.backend.exception.NotFoundException;
 import com.vouchera.backend.repository.CampaignRepository;
 import com.vouchera.backend.repository.CompanyRepository;
-import com.vouchera.backend.repository.UserRepository;
 
 @Service
 @Transactional
@@ -26,16 +25,14 @@ public class CampaignService {
 
 	private final CampaignRepository campaignRepository;
 	private final CompanyRepository companyRepository;
-	private final UserRepository userRepository;
 
 	public CampaignService(CampaignRepository campaignRepository, 
-		CompanyRepository companyRepository, UserRepository userRepository) {
+		CompanyRepository companyRepository) {
 		this.campaignRepository = campaignRepository;
 		this.companyRepository = companyRepository;
-		this.userRepository = userRepository;
 	}
 
-	public Campaign createCampaign(UUID actorUserId, UUID companyId, 
+	public Campaign createCampaign(User currentUser, UUID companyId, 
 		String name,
 		String description,
 		LocalDateTime startTime,
@@ -43,7 +40,7 @@ public class CampaignService {
 		validateCampaignInput(name, description, startTime, endTime);
 		validateCreateWindow(startTime, LocalDateTime.now());
 
-		User actor = getUserById(actorUserId);
+		User actor = currentUser;
 		validateCampaignCreator(actor, companyId);
 
 		Company company = companyRepository.findById(companyId)
@@ -66,11 +63,6 @@ public class CampaignService {
 		return campaignRepository.findAll();
 	}
 
-	// @Transactional(readOnly = true)
-	// public Page<Campaign> listCampaigns(Pageable pageable) {
-	// 	return campaignRepository.findAll(pageable);
-	// }
-
 	@Transactional(readOnly = true)
 	public Campaign getCampaignById(UUID campaignId) {
 		return campaignRepository.findById(campaignId)
@@ -84,13 +76,6 @@ public class CampaignService {
 			CampaignStatus.ACTIVE, current, current);
 	}
 
-	// @Transactional(readOnly = true)
-	// public Page<Campaign> listActiveCampaigns(LocalDateTime now, Pageable pageable) {
-	// 	LocalDateTime current = requireNow(now);
-	// 	return campaignRepository.findByStatusAndStartTimeBeforeAndEndTimeAfter(
-	// 		CampaignStatus.ACTIVE, current, current, pageable);
-	// }
-
 	@Transactional(readOnly = true)
 	public List<Campaign> listCompanyCampaigns(UUID companyId, CampaignStatus status) {
 		if (status == null) {
@@ -99,31 +84,31 @@ public class CampaignService {
 		return campaignRepository.findByCompanyIdAndStatus(companyId, status);
 	}
 
-	public Campaign pauseCampaign(UUID campaignId, UUID actorUserId) {
-		Campaign campaign = getManagedCampaign(campaignId, actorUserId);
+	public Campaign pauseCampaign(UUID campaignId, User currentUser) {
+		Campaign campaign = getManagedCampaign(campaignId, currentUser);
 		campaign.pause();
 		return campaignRepository.save(campaign);
 	}
 
-	public Campaign resumeCampaign(UUID campaignId, UUID actorUserId, LocalDateTime now) {
-		Campaign campaign = getManagedCampaign(campaignId, actorUserId);
+	public Campaign resumeCampaign(UUID campaignId, User currentUser, LocalDateTime now) {
+		Campaign campaign = getManagedCampaign(campaignId, currentUser);
 		campaign.resume(requireNow(now));
 		return campaignRepository.save(campaign);
 	}
 
-	public Campaign endCampaign(UUID campaignId, UUID actorUserId) {
-		Campaign campaign = getManagedCampaign(campaignId, actorUserId);
+	public Campaign endCampaign(UUID campaignId, User currentUser) {
+		Campaign campaign = getManagedCampaign(campaignId, currentUser);
 		campaign.end();
 		return campaignRepository.save(campaign);
 	}
 
 	public Campaign updateCampaign(UUID campaignId, 
-		UUID actorUserId,
+		User currentUser,
 		String name,
 		String description,
 		LocalDateTime startTime,
 		LocalDateTime endTime) {
-		Campaign campaign = getManagedCampaign(campaignId, actorUserId);
+		Campaign campaign = getManagedCampaign(campaignId, currentUser);
 
 		if (!campaign.canBeEdited()) {
 			throw new IllegalStateException("Only ACTIVE or PAUSED campaigns can be edited");
@@ -138,14 +123,9 @@ public class CampaignService {
 		return campaignRepository.save(campaign);
 	}
 
-	public void deleteCampaign(UUID campaignId, UUID actorUserId) {
-		Campaign campaign = getManagedCampaign(campaignId, actorUserId);
+	public void deleteCampaign(UUID campaignId, User currentUser) {
+		Campaign campaign = getManagedCampaign(campaignId, currentUser);
 		campaignRepository.delete(campaign);
-	}
-
-	private User getUserById(UUID userId) {
-		return userRepository.findById(userId)
-			.orElseThrow(() -> new NotFoundException("User not found"));
 	}
 
 	private LocalDateTime requireNow(LocalDateTime now) {
@@ -155,9 +135,9 @@ public class CampaignService {
 		return now;
 	}
 
-	private Campaign getManagedCampaign(UUID campaignId, UUID actorUserId) {
+	private Campaign getManagedCampaign(UUID campaignId, User currentUser) {
 		Campaign campaign = getCampaignById(campaignId);
-		User actor = getUserById(actorUserId);
+		User actor = currentUser;
 
 		validateCampaignManager(actor, campaign);
 		return campaign;
