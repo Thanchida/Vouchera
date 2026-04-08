@@ -8,6 +8,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.vouchera.backend.dto.CurrentUserInfo;
+import com.vouchera.backend.dto.redemption.RedemptionResponse;
 import com.vouchera.backend.entity.Campaign;
 import com.vouchera.backend.entity.Redemption;
 import com.vouchera.backend.entity.User;
@@ -16,6 +18,7 @@ import com.vouchera.backend.enums.RedemptionStatus;
 import com.vouchera.backend.exception.BadRequestException;
 import com.vouchera.backend.exception.ForbiddenException;
 import com.vouchera.backend.exception.NotFoundException;
+import com.vouchera.backend.mapper.RedemptionMapper;
 import com.vouchera.backend.repository.RedemptionRepository;
 import com.vouchera.backend.repository.UserRepository;
 import com.vouchera.backend.repository.VoucherTypeRepository;
@@ -36,9 +39,9 @@ public class RedemptionService {
 		this.voucherTypeRepository = voucherTypeRepository;
 	}
 
-	public Redemption redeemCoupon(User currentUser, UUID voucherTypeId, LocalDateTime now) {
+	public RedemptionResponse redeemCoupon(CurrentUserInfo currentUser, UUID voucherTypeId, LocalDateTime now) {
 		LocalDateTime current = requireNow(now);
-		User user = currentUser;
+		User user = getUserById(currentUser.userId());
 
 		VoucherType voucherType = voucherTypeRepository.findById(voucherTypeId)
 			.orElseThrow(() -> new NotFoundException("Voucher type not found"));
@@ -57,60 +60,73 @@ public class RedemptionService {
 
 		Redemption redemption = new Redemption(user, voucherType);
 		try {
-			return redemptionRepository.save(redemption);
+			return RedemptionMapper.toResponse(redemptionRepository.save(redemption));
 		} catch (DataIntegrityViolationException ex) {
 			throw new IllegalStateException("Duplicate redemption is not allowed", ex);
 		}
 	}
 
 	@Transactional(readOnly = true)
-	public List<Redemption> getUserRedemptions(UUID userId, User currentUser) {
+	public List<RedemptionResponse> getUserRedemptions(UUID userId, CurrentUserInfo currentUser) {
 		ensureUserAccess(userId, currentUser);
-		return redemptionRepository.findByUserId(userId);
+		return RedemptionMapper.toResponseList(redemptionRepository.findByUserId(userId));
 	}
 
 	@Transactional(readOnly = true)
-	public List<Redemption> getUserRedemptionsByStatus(UUID userId, User currentUser, RedemptionStatus status) {
+	public List<RedemptionResponse> getUserRedemptionsByStatus(UUID userId, CurrentUserInfo currentUser, RedemptionStatus status) {
 		ensureUserAccess(userId, currentUser);
 		if (status == null) {
 			throw new BadRequestException("Redemption status is required");
 		}
-		return redemptionRepository.findByUserIdAndStatus(userId, status);
+		return RedemptionMapper.toResponseList(redemptionRepository.findByUserIdAndStatus(userId, status));
 	}
 
-	public Redemption markRedemptionUsed(UUID redemptionId, User currentUser) {
+	public RedemptionResponse markRedemptionUsed(UUID redemptionId, CurrentUserInfo currentUser) {
 		Redemption redemption = getRedemptionById(redemptionId);
-		User actor = currentUser;
 
 		Campaign campaign = redemption.getVoucherType().getCampaign();
-		if (!actor.canManageCampaign(campaign)) {
+		if (!canManageCampaign(currentUser, campaign)) {
 			throw new ForbiddenException("User is not allowed to mark this redemption as used");
 		}
 
 		redemption.markUsed();
-		return redemptionRepository.save(redemption);
+		return RedemptionMapper.toResponse(redemptionRepository.save(redemption));
 	}
 
-	public Redemption expireRedemption(UUID redemptionId, User currentUser) {
+	public RedemptionResponse expireRedemption(UUID redemptionId, CurrentUserInfo currentUser) {
 		Redemption redemption = getRedemptionById(redemptionId);
-		User actor = currentUser;
 
 		Campaign campaign = redemption.getVoucherType().getCampaign();
-		if (!actor.canManageCampaign(campaign)) {
+		if (!canManageCampaign(currentUser, campaign)) {
 			throw new ForbiddenException("User is not allowed to expire this redemption");
 		}
 
 		redemption.markExpired();
-		return redemptionRepository.save(redemption);
+		return RedemptionMapper.toResponse(redemptionRepository.save(redemption));
 	}
 
-	private void ensureUserAccess(UUID userId, User currentUser) {
+	private void ensureUserAccess(UUID userId, CurrentUserInfo currentUser) {
 		if (!userRepository.existsById(userId)) {
 			throw new NotFoundException("User not found");
 		}
-		if (!currentUser.isAdmin() && !currentUser.getId().equals(userId)) {
+		if (!currentUser.isAdmin() && !currentUser.userId().equals(userId)) {
 			throw new ForbiddenException("User is not allowed to access these redemptions");
 		}
+	}
+
+	private boolean canManageCampaign(CurrentUserInfo actor, Campaign campaign) {
+		if (actor.isAdmin()) {
+			return true;
+		}
+		return actor.isMarketing()
+			&& actor.companyId() != null
+			&& campaign.getCompany() != null
+			&& actor.companyId().equals(campaign.getCompany().getId());
+	}
+
+	private User getUserById(UUID userId) {
+		return userRepository.findById(userId)
+			.orElseThrow(() -> new NotFoundException("User not found"));
 	}
 
 	private Redemption getRedemptionById(UUID redemptionId) {
