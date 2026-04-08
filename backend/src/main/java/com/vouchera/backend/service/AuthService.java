@@ -10,13 +10,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.vouchera.backend.dto.AuthResponse;
+import com.vouchera.backend.dto.CurrentUserInfo;
+import com.vouchera.backend.dto.UserResponse;
 import com.vouchera.backend.entity.User;
 import com.vouchera.backend.enums.AccountStatus;
 import com.vouchera.backend.enums.Role;
 import com.vouchera.backend.exception.BadRequestException;
 import com.vouchera.backend.exception.ForbiddenException;
-import com.vouchera.backend.exception.NotFoundException;
 import com.vouchera.backend.repository.UserRepository;
+import com.vouchera.backend.mapper.UserMapper;
 import com.vouchera.backend.util.EmailNormalizer;
 
 import jakarta.transaction.Transactional;
@@ -66,19 +68,27 @@ public class AuthService {
 
     }
 
-    public void logout(UUID userId) {
-        if (userId == null) {
-            throw new BadRequestException("userId cannot be null");
-        }
-
-        userRepository.findById(userId)
-            .orElseThrow(() -> new NotFoundException("User not found"));
-
+    public void logout() {
         SecurityContextHolder.clearContext();
-
     }
 
-    public User getCurrentUser() {
+    public UserResponse getCurrentUser() {
+        return UserMapper.toResponse(getCurrentUserEntity());
+    }
+
+    public CurrentUserInfo getCurrentUserInfo() {
+        User user = getCurrentUserEntity();
+        UUID companyId = user.getCompany() != null ? user.getCompany().getId() : null;
+        return new CurrentUserInfo(
+            user.getId(),
+            user.getEmail(),
+            user.getRole(),
+            user.getAccountStatus(),
+            companyId
+        );
+    }
+
+    private User getCurrentUserEntity() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No authenticated user in context");
@@ -91,6 +101,5 @@ public class AuthService {
 
         return userRepository.findByEmail(EmailNormalizer.normalize(principalName))
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
-        
     }
 }

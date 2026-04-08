@@ -9,6 +9,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.vouchera.backend.dto.UserResponse;
 import com.vouchera.backend.entity.Company;
 import com.vouchera.backend.entity.User;
 import com.vouchera.backend.enums.AccountStatus;
@@ -17,6 +18,7 @@ import com.vouchera.backend.enums.Role;
 import com.vouchera.backend.exception.BadRequestException;
 import com.vouchera.backend.exception.ForbiddenException;
 import com.vouchera.backend.exception.NotFoundException;
+import com.vouchera.backend.mapper.UserMapper;
 import com.vouchera.backend.repository.CompanyRepository;
 import com.vouchera.backend.repository.UserRepository;
 import com.vouchera.backend.util.EmailNormalizer;
@@ -35,15 +37,11 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    public User registerCustomer(String email, String password) {
+    public UserResponse registerCustomer(String email, String password) {
         return registerNewUser(email, password, Role.CUSTOMER, null);
     }
 
-    public User registerInternalUser(String email, String password, Role role, UUID companyId) {
-        if (role == null) {
-            throw new BadRequestException("Role cannot be null");
-        }
-
+    public UserResponse registerInternalUser(String email, String password, Role role, UUID companyId) {
         if (role != Role.MARKETING) {
             throw new BadRequestException("Internal registration supports only MARKETING users");
         }
@@ -51,13 +49,8 @@ public class UserService {
         return registerNewUser(email, password, role, companyId);
     }
 
-    private User registerNewUser(String email, String password, Role role, UUID companyId) {
+    private UserResponse registerNewUser(String email, String password, Role role, UUID companyId) {
         String normalizedEmail = EmailNormalizer.normalize(email);
-        validatePassword(password);
-
-        if (role == null) {
-            throw new BadRequestException("Role cannot be null");
-        }
 
         if (userRepository.existsByEmail(normalizedEmail)) {
             throw new BadRequestException("Email already exists");
@@ -69,30 +62,33 @@ public class UserService {
 
         User user = new User(normalizedEmail, hashedPassword, role, company);
         try {
-            return userRepository.save(user);
+            User saved = userRepository.save(user);
+            return UserMapper.toResponse(saved);
         } catch (DataIntegrityViolationException ex) {
             throw new BadRequestException("Email already exists");
         }
     }
 
     @Transactional(readOnly = true)
-    public List<User> listUsers() {
-        return userRepository.findAll();
+    public List<UserResponse> listUsers() {
+        return UserMapper.toResponseList(userRepository.findAll());
     }
 
     @Transactional(readOnly = true)
-    public User getUserById(UUID userId) {
-        return userRepository.findById(userId)
+    public UserResponse getUserById(UUID userId) {
+        User user = userRepository.findById(userId)
             .orElseThrow(() -> new NotFoundException("User not found"));
+        return UserMapper.toResponse(user);
     }
 
     @Transactional(readOnly = true)
-    public Optional<User> findByEmail(String email) {
-        return userRepository.findByEmail(EmailNormalizer.normalize(email));
+    public Optional<UserResponse> findByEmail(String email) {
+        return userRepository.findByEmail(EmailNormalizer.normalize(email))
+            .map(UserMapper::toResponse);
     }
 
-    public User assignCompany(UUID userId, UUID companyId) {
-        User user = getUserById(userId);
+    public UserResponse assignCompany(UUID userId, UUID companyId) {
+        User user = getUserEntityById(userId);
         Company company = companyRepository.findById(companyId)
             .orElseThrow(() -> new NotFoundException("Company not found"));
 
@@ -105,16 +101,21 @@ public class UserService {
         validateActiveCompany(company);
 
         user.setCompany(company);
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+        return UserMapper.toResponse(saved);
     }
 
-    public User updateUserStatus(UUID userId, AccountStatus status) {
-        User user = userRepository.findById(userId)
-            .orElseThrow(() -> new NotFoundException("User not found"));
+    public UserResponse updateUserStatus(UUID userId, AccountStatus status) {
+        User user = getUserEntityById(userId);
 
         user.setAccountStatus(status);
+        User saved = userRepository.save(user);
+        return UserMapper.toResponse(saved);
+    }
 
-        return userRepository.save(user);
+    private User getUserEntityById(UUID userId) {
+        return userRepository.findById(userId)
+            .orElseThrow(() -> new NotFoundException("User not found"));
     }
 
     private Company resolveCompanyForRole(Role role, UUID companyId) {
@@ -149,16 +150,6 @@ public class UserService {
     private void validateActiveCompany(Company company) {
         if (company.getCompanyStatus() != CompanyStatus.ACTIVE) {
             throw new ForbiddenException("Company must be ACTIVE");
-        }
-    }
-
-    private void validatePassword(String password) {
-        if (password == null || password.isBlank()) {
-            throw new BadRequestException("Password cannot be blank");
-        }
-
-        if (password.length() < 8) {
-            throw new BadRequestException("Password must be at least 8 characters");
         }
     }
 }
