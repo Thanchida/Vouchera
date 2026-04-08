@@ -68,17 +68,11 @@ public class Campaign {
     public Campaign() {}
 
     public Campaign(String name, String description, Company company, LocalDateTime startTime, LocalDateTime endTime, CampaignStatus status) {
-
-        if (!endTime.isAfter(startTime)) {
-            throw new IllegalArgumentException("Campaign endTime must be after startTime");
-        }
-
-        this.name = name;
-        this.description = description;
-        this.company = company;
-        this.startTime = startTime;
-        this.endTime = endTime;
-        this.status = status;
+        setName(name);
+        setDescription(description);
+        setCompany(company);
+        setSchedule(startTime, endTime);
+        setStatus(status);
     }
 
     public boolean isActiveAt(LocalDateTime now) {
@@ -115,6 +109,26 @@ public class Campaign {
         return status == CampaignStatus.ACTIVE || status == CampaignStatus.PAUSED;
     }
 
+    public void updateDetails(String name, String description, LocalDateTime startTime, LocalDateTime endTime) {
+        if (!canBeEdited()) {
+            throw new IllegalStateException("Only ACTIVE or PAUSED campaigns can be edited");
+        }
+        setName(name);
+        setDescription(description);
+        setSchedule(startTime, endTime);
+    }
+
+    private void setSchedule(LocalDateTime startTime, LocalDateTime endTime) {
+        if (startTime == null || endTime == null) {
+            throw new IllegalArgumentException("Campaign startTime and endTime are required");
+        }
+        if (!endTime.isAfter(startTime)) {
+            throw new IllegalArgumentException("Campaign endTime must be after startTime");
+        }
+        this.startTime = startTime;
+        this.endTime = endTime;
+    }
+
     public UUID getId() {
         return id;
     }
@@ -136,7 +150,10 @@ public class Campaign {
     }
 
     public void setName(String name) {
-        this.name = name;
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Campaign name cannot be blank");
+        }
+        this.name = name.trim();
     }
 
     public String getDescription() {
@@ -144,7 +161,10 @@ public class Campaign {
     }
 
     public void setDescription(String description) {
-        this.description = description;
+        if (description == null || description.isBlank()) {
+            throw new IllegalArgumentException("Campaign description cannot be blank");
+        }
+        this.description = description.trim();
     }
 
     public Company getCompany() {
@@ -152,6 +172,9 @@ public class Campaign {
     }
 
     public void setCompany(Company company) {
+        if (company == null) {
+            throw new IllegalArgumentException("Campaign company cannot be null");
+        }
         this.company = company;
     }
 
@@ -168,7 +191,7 @@ public class Campaign {
     }
 
     public void setStartTime(LocalDateTime startTime) {
-        this.startTime = startTime;
+        setSchedule(startTime, this.endTime);
     }
 
     public LocalDateTime getEndTime() {
@@ -176,7 +199,7 @@ public class Campaign {
     }
 
     public void setEndTime(LocalDateTime endTime) {
-        this.endTime = endTime;
+        setSchedule(this.startTime, endTime);
     }
 
     public CampaignStatus getStatus() {
@@ -184,6 +207,9 @@ public class Campaign {
     }
 
     public void setStatus(CampaignStatus status) {
+        if (status == null) {
+            throw new IllegalArgumentException("Campaign status cannot be null");
+        }
         this.status = status;
     }
 }

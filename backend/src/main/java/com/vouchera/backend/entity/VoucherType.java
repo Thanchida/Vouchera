@@ -93,6 +93,14 @@ public class VoucherType {
         remainingQuota++;
     }
 
+    public void increaseQuota(Integer amount) {
+        if (amount == null || amount <= 0) {
+            throw new IllegalArgumentException("Increase amount must be greater than 0");
+        }
+        totalQuota += amount;
+        remainingQuota += amount;
+    }
+
     public UUID getId() {
         return id;
     }

@@ -45,15 +45,12 @@ public class User {
     public User() {}
     
     public User(String email, String password, Role role, Company company) {
-        if (password == null || password.isBlank()) {
-            throw new IllegalArgumentException("Password cannot be blank");
-        }
         if (role == null) {
             throw new IllegalArgumentException("Role cannot be null");
         }
         
         setEmail(email);
-        this.password = password;
+        setPassword(password);
         this.role = role;
         this.company = company;
         this.accountStatus = AccountStatus.ACTIVE;
@@ -102,6 +99,12 @@ public class User {
     }
     
     public void setPassword(String password) {
+        if (password == null || password.isBlank()) {
+            throw new IllegalArgumentException("Password cannot be blank");
+        }
+        if (password.length() < 8) {
+            throw new IllegalArgumentException("Password must be at least 8 characters");
+        }
         this.password = password;
     }
     
