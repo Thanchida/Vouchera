@@ -6,11 +6,13 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.vouchera.backend.dto.company.CompanyResponse;
 import com.vouchera.backend.entity.Company;
 import com.vouchera.backend.enums.CompanyStatus;
 import com.vouchera.backend.exception.BadRequestException;
 import com.vouchera.backend.exception.ForbiddenException;
 import com.vouchera.backend.exception.NotFoundException;
+import com.vouchera.backend.mapper.CompanyMapper;
 import com.vouchera.backend.repository.CompanyRepository;
 
 @Service
@@ -23,7 +25,7 @@ public class CompanyService {
 		this.companyRepository = companyRepository;
 	}
 
-	public Company createCompany(String name) {
+	public CompanyResponse createCompany(String name) {
 		String normalizedName = normalizeName(name);
 
 		if (companyRepository.findByNameIgnoreCase(normalizedName).isPresent()) {
@@ -31,22 +33,23 @@ public class CompanyService {
 		}
 
 		Company company = new Company(normalizedName);
-		return companyRepository.save(company);
+		return CompanyMapper.toResponse(companyRepository.save(company));
 	}
 
 	@Transactional(readOnly = true)
-	public Company getCompanyById(UUID companyId) {
-		return companyRepository.findById(companyId)
+	public CompanyResponse getCompanyById(UUID companyId) {
+		Company company = companyRepository.findById(companyId)
 			.orElseThrow(() -> new NotFoundException("Company not found"));
+		return CompanyMapper.toResponse(company);
 	}
 
 	@Transactional(readOnly = true)
-	public List<Company> listCompanies() {
-		return companyRepository.findAll();
+	public List<CompanyResponse> listCompanies() {
+		return CompanyMapper.toResponsesList(companyRepository.findAll());
 	}
 
-	public Company updateCompanyName(UUID companyId, String newName) {
-		Company company = getCompanyById(companyId);
+	public CompanyResponse updateCompanyName(UUID companyId, String newName) {
+		Company company = getCompanyEntityById(companyId);
 		validateCompanyEditable(company);
 		String normalizedName = normalizeName(newName);
 
@@ -57,17 +60,22 @@ public class CompanyService {
 		});
 
 		company.setName(normalizedName);
-		return companyRepository.save(company);
+		return CompanyMapper.toResponse(companyRepository.save(company));
 	}
 
-	public Company updateCompanyStatus(UUID companyId, CompanyStatus status) {
+	public CompanyResponse updateCompanyStatus(UUID companyId, CompanyStatus status) {
 		if (status == null) {
 			throw new BadRequestException("Company status cannot be null");
 		}
 
-		Company company = getCompanyById(companyId);
+		Company company = getCompanyEntityById(companyId);
 		company.setCompanyStatus(status);
-		return companyRepository.save(company);
+		return CompanyMapper.toResponse(companyRepository.save(company));
+	}
+
+	private Company getCompanyEntityById(UUID companyId) {
+		return companyRepository.findById(companyId)
+			.orElseThrow(() -> new NotFoundException("Company not found"));
 	}
 
 	private void validateCompanyEditable(Company company) {
