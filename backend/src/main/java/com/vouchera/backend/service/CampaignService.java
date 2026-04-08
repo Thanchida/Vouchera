@@ -7,15 +7,16 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.vouchera.backend.dto.CurrentUserInfo;
+import com.vouchera.backend.dto.campaign.CampaignResponse;
 import com.vouchera.backend.entity.Campaign;
 import com.vouchera.backend.entity.Company;
-import com.vouchera.backend.entity.User;
-import com.vouchera.backend.enums.AccountStatus;
 import com.vouchera.backend.enums.CampaignStatus;
 import com.vouchera.backend.enums.CompanyStatus;
 import com.vouchera.backend.exception.BadRequestException;
 import com.vouchera.backend.exception.ForbiddenException;
 import com.vouchera.backend.exception.NotFoundException;
+import com.vouchera.backend.mapper.CampaignMapper;
 import com.vouchera.backend.repository.CampaignRepository;
 import com.vouchera.backend.repository.CompanyRepository;
 
@@ -32,16 +33,14 @@ public class CampaignService {
 		this.companyRepository = companyRepository;
 	}
 
-	public Campaign createCampaign(User currentUser, UUID companyId, 
+	public CampaignResponse createCampaign(CurrentUserInfo currentUser, UUID companyId, 
 		String name,
 		String description,
 		LocalDateTime startTime,
 		LocalDateTime endTime) {
-		validateCampaignInput(name, description, startTime, endTime);
 		validateCreateWindow(startTime, LocalDateTime.now());
 
-		User actor = currentUser;
-		validateCampaignCreator(actor, companyId);
+		validateCampaignCreator(currentUser, companyId);
 
 		Company company = companyRepository.findById(companyId)
 			.orElseThrow(() -> new NotFoundException("Company not found"));
@@ -55,75 +54,73 @@ public class CampaignService {
 			startTime, endTime, CampaignStatus.ACTIVE
 		);
 
-		return campaignRepository.save(campaign);
+		return CampaignMapper.toResponse(campaignRepository.save(campaign));
 	}
 
 	@Transactional(readOnly = true)
-	public List<Campaign> listCampaigns() {
-		return campaignRepository.findAll();
+	public List<CampaignResponse> listCampaigns() {
+		return CampaignMapper.toResponseList(campaignRepository.findAll());
 	}
 
 	@Transactional(readOnly = true)
-	public Campaign getCampaignById(UUID campaignId) {
+	public CampaignResponse getCampaignById(UUID campaignId) {
+		return CampaignMapper.toResponse(getCampaignEntityById(campaignId));
+	}
+
+	private Campaign getCampaignEntityById(UUID campaignId) {
 		return campaignRepository.findById(campaignId)
 			.orElseThrow(() -> new NotFoundException("Campaign not found"));
 	}
 
 	@Transactional(readOnly = true)
-	public List<Campaign> listActiveCampaigns(LocalDateTime now) {
+	public List<CampaignResponse> listActiveCampaigns(LocalDateTime now) {
 		LocalDateTime current = requireNow(now);
-		return campaignRepository.findByStatusAndStartTimeBeforeAndEndTimeAfter(
+		List<Campaign> campaigns = campaignRepository.findByStatusAndStartTimeBeforeAndEndTimeAfter(
 			CampaignStatus.ACTIVE, current, current);
+		return CampaignMapper.toResponseList(campaigns);
 	}
 
 	@Transactional(readOnly = true)
-	public List<Campaign> listCompanyCampaigns(UUID companyId, CampaignStatus status) {
+	public List<CampaignResponse> listCompanyCampaigns(UUID companyId, CampaignStatus status) {
+		List<Campaign> campaigns;
 		if (status == null) {
-			return campaignRepository.findByCompanyId(companyId);
+			campaigns = campaignRepository.findByCompanyId(companyId);
+		} else {
+			campaigns = campaignRepository.findByCompanyIdAndStatus(companyId, status);
 		}
-		return campaignRepository.findByCompanyIdAndStatus(companyId, status);
+		return CampaignMapper.toResponseList(campaigns);
 	}
 
-	public Campaign pauseCampaign(UUID campaignId, User currentUser) {
+	public CampaignResponse pauseCampaign(UUID campaignId, CurrentUserInfo currentUser) {
 		Campaign campaign = getManagedCampaign(campaignId, currentUser);
 		campaign.pause();
-		return campaignRepository.save(campaign);
+		return CampaignMapper.toResponse(campaignRepository.save(campaign));
 	}
 
-	public Campaign resumeCampaign(UUID campaignId, User currentUser, LocalDateTime now) {
+	public CampaignResponse resumeCampaign(UUID campaignId, CurrentUserInfo currentUser, LocalDateTime now) {
 		Campaign campaign = getManagedCampaign(campaignId, currentUser);
 		campaign.resume(requireNow(now));
-		return campaignRepository.save(campaign);
+		return CampaignMapper.toResponse(campaignRepository.save(campaign));
 	}
 
-	public Campaign endCampaign(UUID campaignId, User currentUser) {
+	public CampaignResponse endCampaign(UUID campaignId, CurrentUserInfo currentUser) {
 		Campaign campaign = getManagedCampaign(campaignId, currentUser);
 		campaign.end();
-		return campaignRepository.save(campaign);
+		return CampaignMapper.toResponse(campaignRepository.save(campaign));
 	}
 
-	public Campaign updateCampaign(UUID campaignId, 
-		User currentUser,
+	public CampaignResponse updateCampaign(UUID campaignId, 
+		CurrentUserInfo currentUser,
 		String name,
 		String description,
 		LocalDateTime startTime,
 		LocalDateTime endTime) {
 		Campaign campaign = getManagedCampaign(campaignId, currentUser);
-
-		if (!campaign.canBeEdited()) {
-			throw new IllegalStateException("Only ACTIVE or PAUSED campaigns can be edited");
-		}
-
-		validateCampaignInput(name, description, startTime, endTime);
-
-		campaign.setName(name.trim());
-		campaign.setDescription(description.trim());
-		campaign.setStartTime(startTime);
-		campaign.setEndTime(endTime);
-		return campaignRepository.save(campaign);
+		campaign.updateDetails(name, description, startTime, endTime);
+		return CampaignMapper.toResponse(campaignRepository.save(campaign));
 	}
 
-	public void deleteCampaign(UUID campaignId, User currentUser) {
+	public void deleteCampaign(UUID campaignId, CurrentUserInfo currentUser) {
 		Campaign campaign = getManagedCampaign(campaignId, currentUser);
 		campaignRepository.delete(campaign);
 	}
@@ -135,25 +132,24 @@ public class CampaignService {
 		return now;
 	}
 
-	private Campaign getManagedCampaign(UUID campaignId, User currentUser) {
-		Campaign campaign = getCampaignById(campaignId);
-		User actor = currentUser;
+	private Campaign getManagedCampaign(UUID campaignId, CurrentUserInfo currentUser) {
+		Campaign campaign = getCampaignEntityById(campaignId);
 
-		validateCampaignManager(actor, campaign);
+		validateCampaignManager(currentUser, campaign);
 		return campaign;
 	}
 
-	private void validateCampaignManager(User actor, Campaign campaign) {
-		if (actor.getAccountStatus() != AccountStatus.ACTIVE) {
+	private void validateCampaignManager(CurrentUserInfo actor, Campaign campaign) {
+		if (actor.accountStatus() != com.vouchera.backend.enums.AccountStatus.ACTIVE) {
 			throw new ForbiddenException("Account is suspended");
 		}
-		if (!actor.canManageCampaign(campaign)) {
+		if (!canManageCampaign(actor, campaign)) {
 			throw new ForbiddenException("User is not allowed to manage this campaign");
 		}
 	}
 
-	private void validateCampaignCreator(User actor, UUID companyId) {
-		if (actor.getAccountStatus() != AccountStatus.ACTIVE) {
+	private void validateCampaignCreator(CurrentUserInfo actor, UUID companyId) {
+		if (actor.accountStatus() != com.vouchera.backend.enums.AccountStatus.ACTIVE) {
 			throw new ForbiddenException("Account is suspended");
 		}
 		if (actor.isAdmin()) {
@@ -162,9 +158,19 @@ public class CampaignService {
 		if (!actor.isMarketing()) {
 			throw new ForbiddenException("Only ADMIN or MARKETING can create campaigns");
 		}
-		if (actor.getCompany() == null || !actor.getCompany().getId().equals(companyId)) {
+		if (actor.companyId() == null || !actor.companyId().equals(companyId)) {
 			throw new ForbiddenException("MARKETING user can only create campaigns for their own company");
 		}
+	}
+
+	private boolean canManageCampaign(CurrentUserInfo actor, Campaign campaign) {
+		if (actor.isAdmin()) {
+			return true;
+		}
+		return actor.isMarketing()
+			&& actor.companyId() != null
+			&& campaign.getCompany() != null
+			&& actor.companyId().equals(campaign.getCompany().getId());
 	}
 
 	private void validateCreateWindow(LocalDateTime startTime, LocalDateTime now) {
@@ -173,21 +179,4 @@ public class CampaignService {
 		}
 	}
 
-	private void validateCampaignInput(String name, 
-		String description,
-		LocalDateTime startTime,
-		LocalDateTime endTime) {
-		if (name == null || name.isBlank()) {
-			throw new BadRequestException("Campaign name cannot be blank");
-		}
-		if (description == null || description.isBlank()) {
-			throw new BadRequestException("Campaign description cannot be blank");
-		}
-		if (startTime == null || endTime == null) {
-			throw new BadRequestException("Campaign startTime and endTime are required");
-		}
-		if (!endTime.isAfter(startTime)) {
-			throw new BadRequestException("Campaign endTime must be after startTime");
-		}
-	}
 }
