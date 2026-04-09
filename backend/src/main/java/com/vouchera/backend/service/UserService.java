@@ -1,10 +1,11 @@
 package com.vouchera.backend.service;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,7 +19,6 @@ import com.vouchera.backend.enums.Role;
 import com.vouchera.backend.exception.BadRequestException;
 import com.vouchera.backend.exception.ForbiddenException;
 import com.vouchera.backend.exception.NotFoundException;
-import com.vouchera.backend.mapper.UserMapper;
 import com.vouchera.backend.repository.CompanyRepository;
 import com.vouchera.backend.repository.UserRepository;
 import com.vouchera.backend.util.EmailNormalizer;
@@ -63,28 +63,28 @@ public class UserService {
         User user = new User(normalizedEmail, hashedPassword, role, company);
         try {
             User saved = userRepository.save(user);
-            return UserMapper.toResponse(saved);
+            return UserResponse.fromEntity(saved);
         } catch (DataIntegrityViolationException ex) {
             throw new BadRequestException("Email already exists");
         }
     }
 
     @Transactional(readOnly = true)
-    public List<UserResponse> listUsers() {
-        return UserMapper.toResponseList(userRepository.findAll());
+    public Page<UserResponse> listUsers(Pageable pageable) {
+        return userRepository.findAll(pageable).map(UserResponse::fromEntity);
     }
 
     @Transactional(readOnly = true)
     public UserResponse getUserById(UUID userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new NotFoundException("User not found"));
-        return UserMapper.toResponse(user);
+        return UserResponse.fromEntity(user);
     }
 
     @Transactional(readOnly = true)
     public Optional<UserResponse> findByEmail(String email) {
         return userRepository.findByEmail(EmailNormalizer.normalize(email))
-            .map(UserMapper::toResponse);
+            .map(UserResponse::fromEntity);
     }
 
     public UserResponse assignCompany(UUID userId, UUID companyId) {
@@ -102,7 +102,7 @@ public class UserService {
 
         user.setCompany(company);
         User saved = userRepository.save(user);
-        return UserMapper.toResponse(saved);
+        return UserResponse.fromEntity(saved);
     }
 
     public UserResponse updateUserStatus(UUID userId, AccountStatus status) {
@@ -110,7 +110,7 @@ public class UserService {
 
         user.setAccountStatus(status);
         User saved = userRepository.save(user);
-        return UserMapper.toResponse(saved);
+        return UserResponse.fromEntity(saved);
     }
 
     private User getUserEntityById(UUID userId) {

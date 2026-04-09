@@ -18,7 +18,6 @@ import com.vouchera.backend.enums.RedemptionStatus;
 import com.vouchera.backend.exception.BadRequestException;
 import com.vouchera.backend.exception.ForbiddenException;
 import com.vouchera.backend.exception.NotFoundException;
-import com.vouchera.backend.mapper.RedemptionMapper;
 import com.vouchera.backend.repository.RedemptionRepository;
 import com.vouchera.backend.repository.UserRepository;
 import com.vouchera.backend.repository.VoucherTypeRepository;
@@ -39,28 +38,31 @@ public class RedemptionService {
 		this.voucherTypeRepository = voucherTypeRepository;
 	}
 
-	public RedemptionResponse redeemCoupon(CurrentUserInfo currentUser, UUID voucherTypeId, LocalDateTime now) {
-		LocalDateTime current = requireNow(now);
+	@Transactional
+	public RedemptionResponse redeemCoupon(CurrentUserInfo currentUser, UUID voucherTypeId) {
 		User user = getUserById(currentUser.userId());
+		LocalDateTime current = LocalDateTime.now();
 
 		VoucherType voucherType = voucherTypeRepository.findById(voucherTypeId)
 			.orElseThrow(() -> new NotFoundException("Voucher type not found"));
 
 		Campaign campaign = voucherType.getCampaign();
 		if (!campaign.isActiveAt(current)) {
-			throw new IllegalStateException("Campaign is not active for redemption");
+			throw new BadRequestException("Campaign is not active for redemption");
 		}
 
 		if (redemptionRepository.existsByUserIdAndVoucherTypeId(user.getId(), voucherTypeId)) {
-			throw new IllegalStateException("User has already redeemed this voucher type");
+			throw new BadRequestException("User has already redeemed this voucher type");
 		}
 
-		voucherType.claimOne();
-		voucherTypeRepository.save(voucherType);
+		int updated = voucherTypeRepository.decrementQuotaIfAvailable(voucherTypeId);
+		if (updated == 0) {
+			throw new BadRequestException("Coupon is out of stock");
+		}
 
 		Redemption redemption = new Redemption(user, voucherType);
 		try {
-			return RedemptionMapper.toResponse(redemptionRepository.save(redemption));
+			return RedemptionResponse.fromEntity(redemptionRepository.save(redemption));
 		} catch (DataIntegrityViolationException ex) {
 			throw new IllegalStateException("Duplicate redemption is not allowed", ex);
 		}
@@ -69,7 +71,10 @@ public class RedemptionService {
 	@Transactional(readOnly = true)
 	public List<RedemptionResponse> getUserRedemptions(UUID userId, CurrentUserInfo currentUser) {
 		ensureUserAccess(userId, currentUser);
-		return RedemptionMapper.toResponseList(redemptionRepository.findByUserId(userId));
+		return redemptionRepository.findByUserId(userId)
+			.stream()
+			.map(RedemptionResponse::fromEntity)
+			.toList();
 	}
 
 	@Transactional(readOnly = true)
@@ -78,9 +83,13 @@ public class RedemptionService {
 		if (status == null) {
 			throw new BadRequestException("Redemption status is required");
 		}
-		return RedemptionMapper.toResponseList(redemptionRepository.findByUserIdAndStatus(userId, status));
+		return redemptionRepository.findByUserIdAndStatus(userId, status)
+			.stream()
+			.map(RedemptionResponse::fromEntity)
+			.toList();
 	}
 
+	@Transactional
 	public RedemptionResponse markRedemptionUsed(UUID redemptionId, CurrentUserInfo currentUser) {
 		Redemption redemption = getRedemptionById(redemptionId);
 
@@ -90,9 +99,10 @@ public class RedemptionService {
 		}
 
 		redemption.markUsed();
-		return RedemptionMapper.toResponse(redemptionRepository.save(redemption));
+		return RedemptionResponse.fromEntity(redemptionRepository.save(redemption));
 	}
 
+	@Transactional
 	public RedemptionResponse expireRedemption(UUID redemptionId, CurrentUserInfo currentUser) {
 		Redemption redemption = getRedemptionById(redemptionId);
 
@@ -102,7 +112,7 @@ public class RedemptionService {
 		}
 
 		redemption.markExpired();
-		return RedemptionMapper.toResponse(redemptionRepository.save(redemption));
+		return RedemptionResponse.fromEntity(redemptionRepository.save(redemption));
 	}
 
 	private void ensureUserAccess(UUID userId, CurrentUserInfo currentUser) {
@@ -132,12 +142,5 @@ public class RedemptionService {
 	private Redemption getRedemptionById(UUID redemptionId) {
 		return redemptionRepository.findById(redemptionId)
 			.orElseThrow(() -> new NotFoundException("Redemption not found"));
-	}
-
-	private LocalDateTime requireNow(LocalDateTime now) {
-		if (now == null) {
-			throw new BadRequestException("now cannot be null");
-		}
-		return now;
 	}
 }

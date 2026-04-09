@@ -2,9 +2,13 @@ package com.vouchera.backend.service;
 
 import java.util.UUID;
 
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.stereotype.Service;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -18,7 +22,6 @@ import com.vouchera.backend.enums.Role;
 import com.vouchera.backend.exception.BadRequestException;
 import com.vouchera.backend.exception.ForbiddenException;
 import com.vouchera.backend.repository.UserRepository;
-import com.vouchera.backend.mapper.UserMapper;
 import com.vouchera.backend.util.EmailNormalizer;
 
 import jakarta.transaction.Transactional;
@@ -68,12 +71,19 @@ public class AuthService {
 
     }
 
-    public void logout() {
-        SecurityContextHolder.clearContext();
+    public void logout(HttpServletRequest request, HttpServletResponse response) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        new SecurityContextLogoutHandler().logout(request, response, auth);
+
+        Cookie sessionCookie = new Cookie("JSESSIONID", "");
+        sessionCookie.setPath("/");
+        sessionCookie.setMaxAge(0);
+        sessionCookie.setHttpOnly(true);
+        response.addCookie(sessionCookie);
     }
 
     public UserResponse getCurrentUser() {
-        return UserMapper.toResponse(getCurrentUserEntity());
+        return UserResponse.fromEntity(getCurrentUserEntity());
     }
 
     public CurrentUserInfo getCurrentUserInfo() {

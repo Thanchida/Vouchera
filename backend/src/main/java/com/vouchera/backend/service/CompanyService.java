@@ -1,10 +1,11 @@
 package com.vouchera.backend.service;
 
-import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import com.vouchera.backend.dto.company.CompanyResponse;
 import com.vouchera.backend.entity.Company;
@@ -12,7 +13,6 @@ import com.vouchera.backend.enums.CompanyStatus;
 import com.vouchera.backend.exception.BadRequestException;
 import com.vouchera.backend.exception.ForbiddenException;
 import com.vouchera.backend.exception.NotFoundException;
-import com.vouchera.backend.mapper.CompanyMapper;
 import com.vouchera.backend.repository.CompanyRepository;
 
 @Service
@@ -33,19 +33,19 @@ public class CompanyService {
 		}
 
 		Company company = new Company(normalizedName);
-		return CompanyMapper.toResponse(companyRepository.save(company));
+		return CompanyResponse.fromEntity(companyRepository.save(company));
 	}
 
 	@Transactional(readOnly = true)
 	public CompanyResponse getCompanyById(UUID companyId) {
 		Company company = companyRepository.findById(companyId)
 			.orElseThrow(() -> new NotFoundException("Company not found"));
-		return CompanyMapper.toResponse(company);
+		return CompanyResponse.fromEntity(company);
 	}
 
 	@Transactional(readOnly = true)
-	public List<CompanyResponse> listCompanies() {
-		return CompanyMapper.toResponsesList(companyRepository.findAll());
+	public Page<CompanyResponse> listCompanies(Pageable pageable) {
+		return companyRepository.findAll(pageable).map(CompanyResponse::fromEntity);
 	}
 
 	public CompanyResponse updateCompanyName(UUID companyId, String newName) {
@@ -60,7 +60,7 @@ public class CompanyService {
 		});
 
 		company.setName(normalizedName);
-		return CompanyMapper.toResponse(companyRepository.save(company));
+		return CompanyResponse.fromEntity(companyRepository.save(company));
 	}
 
 	public CompanyResponse updateCompanyStatus(UUID companyId, CompanyStatus status) {
@@ -70,7 +70,7 @@ public class CompanyService {
 
 		Company company = getCompanyEntityById(companyId);
 		company.setCompanyStatus(status);
-		return CompanyMapper.toResponse(companyRepository.save(company));
+		return CompanyResponse.fromEntity(companyRepository.save(company));
 	}
 
 	private Company getCompanyEntityById(UUID companyId) {

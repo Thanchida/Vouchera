@@ -1,11 +1,12 @@
 package com.vouchera.backend.service;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import com.vouchera.backend.dto.CurrentUserInfo;
 import com.vouchera.backend.dto.campaign.CampaignResponse;
@@ -16,7 +17,6 @@ import com.vouchera.backend.enums.CompanyStatus;
 import com.vouchera.backend.exception.BadRequestException;
 import com.vouchera.backend.exception.ForbiddenException;
 import com.vouchera.backend.exception.NotFoundException;
-import com.vouchera.backend.mapper.CampaignMapper;
 import com.vouchera.backend.repository.CampaignRepository;
 import com.vouchera.backend.repository.CompanyRepository;
 
@@ -54,17 +54,17 @@ public class CampaignService {
 			startTime, endTime, CampaignStatus.ACTIVE
 		);
 
-		return CampaignMapper.toResponse(campaignRepository.save(campaign));
+		return CampaignResponse.fromEntity(campaignRepository.save(campaign));
 	}
 
 	@Transactional(readOnly = true)
-	public List<CampaignResponse> listCampaigns() {
-		return CampaignMapper.toResponseList(campaignRepository.findAll());
+	public Page<CampaignResponse> listCampaigns(Pageable pageable) {
+		return campaignRepository.findAll(pageable).map(CampaignResponse::fromEntity);
 	}
 
 	@Transactional(readOnly = true)
 	public CampaignResponse getCampaignById(UUID campaignId) {
-		return CampaignMapper.toResponse(getCampaignEntityById(campaignId));
+		return CampaignResponse.fromEntity(getCampaignEntityById(campaignId));
 	}
 
 	private Campaign getCampaignEntityById(UUID campaignId) {
@@ -73,40 +73,40 @@ public class CampaignService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<CampaignResponse> listActiveCampaigns(LocalDateTime now) {
+	public Page<CampaignResponse> listActiveCampaigns(LocalDateTime now, Pageable pageable) {
 		LocalDateTime current = requireNow(now);
-		List<Campaign> campaigns = campaignRepository.findByStatusAndStartTimeBeforeAndEndTimeAfter(
-			CampaignStatus.ACTIVE, current, current);
-		return CampaignMapper.toResponseList(campaigns);
+		return campaignRepository
+			.findByStatusAndStartTimeBeforeAndEndTimeAfter(CampaignStatus.ACTIVE, current, current, pageable)
+			.map(CampaignResponse::fromEntity);
 	}
 
 	@Transactional(readOnly = true)
-	public List<CampaignResponse> listCompanyCampaigns(UUID companyId, CampaignStatus status) {
-		List<Campaign> campaigns;
+	public Page<CampaignResponse> listCompanyCampaigns(UUID companyId, CampaignStatus status, Pageable pageable) {
+		Page<Campaign> campaigns;
 		if (status == null) {
-			campaigns = campaignRepository.findByCompanyId(companyId);
+			campaigns = campaignRepository.findByCompanyId(companyId, pageable);
 		} else {
-			campaigns = campaignRepository.findByCompanyIdAndStatus(companyId, status);
+			campaigns = campaignRepository.findByCompanyIdAndStatus(companyId, status, pageable);
 		}
-		return CampaignMapper.toResponseList(campaigns);
+		return campaigns.map(CampaignResponse::fromEntity);
 	}
 
 	public CampaignResponse pauseCampaign(UUID campaignId, CurrentUserInfo currentUser) {
 		Campaign campaign = getManagedCampaign(campaignId, currentUser);
 		campaign.pause();
-		return CampaignMapper.toResponse(campaignRepository.save(campaign));
+		return CampaignResponse.fromEntity(campaignRepository.save(campaign));
 	}
 
 	public CampaignResponse resumeCampaign(UUID campaignId, CurrentUserInfo currentUser, LocalDateTime now) {
 		Campaign campaign = getManagedCampaign(campaignId, currentUser);
 		campaign.resume(requireNow(now));
-		return CampaignMapper.toResponse(campaignRepository.save(campaign));
+		return CampaignResponse.fromEntity(campaignRepository.save(campaign));
 	}
 
 	public CampaignResponse endCampaign(UUID campaignId, CurrentUserInfo currentUser) {
 		Campaign campaign = getManagedCampaign(campaignId, currentUser);
 		campaign.end();
-		return CampaignMapper.toResponse(campaignRepository.save(campaign));
+		return CampaignResponse.fromEntity(campaignRepository.save(campaign));
 	}
 
 	public CampaignResponse updateCampaign(UUID campaignId, 
@@ -117,7 +117,7 @@ public class CampaignService {
 		LocalDateTime endTime) {
 		Campaign campaign = getManagedCampaign(campaignId, currentUser);
 		campaign.updateDetails(name, description, startTime, endTime);
-		return CampaignMapper.toResponse(campaignRepository.save(campaign));
+		return CampaignResponse.fromEntity(campaignRepository.save(campaign));
 	}
 
 	public void deleteCampaign(UUID campaignId, CurrentUserInfo currentUser) {

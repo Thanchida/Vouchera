@@ -10,7 +10,6 @@ import com.vouchera.backend.dto.voucher.VoucherTypeResponse;
 import com.vouchera.backend.entity.Campaign;
 import com.vouchera.backend.entity.VoucherType;
 import com.vouchera.backend.exception.NotFoundException;
-import com.vouchera.backend.mapper.VoucherTypeMapper;
 import com.vouchera.backend.repository.CampaignRepository;
 import com.vouchera.backend.repository.VoucherTypeRepository;
 
@@ -33,25 +32,31 @@ public class VoucherTypeService {
 
 		VoucherType voucherType = new VoucherType(campaign, discountPercent, totalQuota);
 		VoucherType saved = voucherTypeRepository.save(voucherType);
-		return VoucherTypeMapper.toResponse(saved);
+		return VoucherTypeResponse.fromEntity(saved);
 	}
 
 	@Transactional(readOnly = true)
 	public VoucherTypeResponse getVoucherTypeById(UUID voucherTypeId) {
-		return VoucherTypeMapper.toResponse(voucherTypeRepository.findById(voucherTypeId)
+		return VoucherTypeResponse.fromEntity(voucherTypeRepository.findById(voucherTypeId)
 			.orElseThrow(() -> new NotFoundException("Voucher type not found")));
 	}
 
 	@Transactional(readOnly = true)
 	public List<VoucherTypeResponse> listByCampaign(UUID campaignId) {
-		return VoucherTypeMapper.toResponseList(voucherTypeRepository
-			.findByCampaignId(campaignId));
+		return voucherTypeRepository
+			.findByCampaignId(campaignId)
+			.stream()
+			.map(VoucherTypeResponse::fromEntity)
+			.toList();
 	}
 
 	@Transactional(readOnly = true)
 	public List<VoucherTypeResponse> listAvailableByCampaign(UUID campaignId) {
-		return VoucherTypeMapper.toResponseList(voucherTypeRepository
-			.findByCampaignIdAndRemainingQuotaGreaterThan(campaignId, 0));
+		return voucherTypeRepository
+			.findByCampaignIdAndRemainingQuotaGreaterThan(campaignId, 0)
+			.stream()
+			.map(VoucherTypeResponse::fromEntity)
+			.toList();
 	}
 
 	public VoucherTypeResponse increaseQuota(UUID voucherTypeId, Integer amount) {
@@ -61,6 +66,6 @@ public class VoucherTypeService {
 		voucherType.increaseQuota(amount);
 		VoucherType saved = voucherTypeRepository.save(voucherType);
 
-		return VoucherTypeMapper.toResponse(saved);
+		return VoucherTypeResponse.fromEntity(saved);
 	}
 }
