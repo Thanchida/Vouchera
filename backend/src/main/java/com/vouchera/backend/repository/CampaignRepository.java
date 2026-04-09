@@ -15,7 +15,11 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
 
     List<Campaign> findByCompanyId(UUID companyId);
 
+    Page<Campaign> findByCompanyId(UUID companyId, Pageable pageable);
+
     List<Campaign> findByCompanyIdAndStatus(UUID companyId, CampaignStatus status);
+
+    Page<Campaign> findByCompanyIdAndStatus(UUID companyId, CampaignStatus status, Pageable pageable);
     
     List<Campaign> findByStatusAndStartTimeBeforeAndEndTimeAfter(CampaignStatus status, LocalDateTime now1, LocalDateTime now2);
 

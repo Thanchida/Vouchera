@@ -15,7 +15,7 @@ public interface VoucherTypeRepository extends JpaRepository<VoucherType, UUID> 
     
     List<VoucherType> findByCampaignIdAndRemainingQuotaGreaterThan(UUID campaignId, Integer remainingQuota);
 
-        @Modifying
+        @Modifying(clearAutomatically = true, flushAutomatically = true)
         @Query("""
             update VoucherType v
             set v.remainingQuota = v.remainingQuota - 1
