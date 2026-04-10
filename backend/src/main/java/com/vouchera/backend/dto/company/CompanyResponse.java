@@ -2,6 +2,7 @@ package com.vouchera.backend.dto.company;
 
 import java.util.UUID;
 
+import com.vouchera.backend.entity.Company;
 import com.vouchera.backend.enums.CompanyStatus;
 
 public class CompanyResponse {
@@ -26,5 +27,17 @@ public class CompanyResponse {
 
     public CompanyStatus getCompanyStatus() {
         return companyStatus;
+    }
+
+    public static CompanyResponse fromEntity(Company company) {
+        if (company == null) {
+            return null;
+        }
+
+        return new CompanyResponse(
+            company.getId(),
+            company.getName(),
+            company.getCompanyStatus()
+        );
     }
 }
