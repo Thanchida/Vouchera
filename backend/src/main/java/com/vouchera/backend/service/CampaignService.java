@@ -8,7 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-import com.vouchera.backend.dto.CurrentUserInfo;
+import com.vouchera.backend.dto.auth.CurrentUserInfo;
 import com.vouchera.backend.dto.campaign.CampaignResponse;
 import com.vouchera.backend.entity.Campaign;
 import com.vouchera.backend.entity.Company;

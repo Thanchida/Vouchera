@@ -8,7 +8,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.vouchera.backend.dto.CurrentUserInfo;
+import com.vouchera.backend.dto.auth.CurrentUserInfo;
 import com.vouchera.backend.dto.redemption.RedemptionResponse;
 import com.vouchera.backend.entity.Campaign;
 import com.vouchera.backend.entity.Redemption;

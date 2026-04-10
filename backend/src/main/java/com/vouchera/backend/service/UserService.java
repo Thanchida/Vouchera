@@ -10,7 +10,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.vouchera.backend.dto.UserResponse;
+import com.vouchera.backend.dto.user.UserResponse;
 import com.vouchera.backend.entity.Company;
 import com.vouchera.backend.entity.User;
 import com.vouchera.backend.enums.AccountStatus;

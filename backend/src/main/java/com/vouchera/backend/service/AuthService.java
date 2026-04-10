@@ -13,9 +13,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.vouchera.backend.dto.AuthResponse;
-import com.vouchera.backend.dto.CurrentUserInfo;
-import com.vouchera.backend.dto.UserResponse;
+import com.vouchera.backend.dto.auth.AuthResponse;
+import com.vouchera.backend.dto.auth.CurrentUserInfo;
+import com.vouchera.backend.dto.user.UserResponse;
 import com.vouchera.backend.entity.User;
 import com.vouchera.backend.enums.AccountStatus;
 import com.vouchera.backend.enums.Role;
