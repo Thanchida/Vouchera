@@ -2,6 +2,8 @@ package com.vouchera.backend.dto.voucher;
 
 import java.util.UUID;
 
+import com.vouchera.backend.entity.VoucherType;
+
 public class VoucherTypeResponse {
 
     private UUID id;
@@ -42,5 +44,19 @@ public class VoucherTypeResponse {
 
     public UUID getCampaignId() {
         return campaignId;
+    }
+
+    public static VoucherTypeResponse fromEntity(VoucherType voucherType) {
+        if (voucherType == null) {
+            return null;
+        }
+
+        return new VoucherTypeResponse(
+            voucherType.getId(),
+            voucherType.getDiscountPercent(),
+            voucherType.getTotalQuota(),
+            voucherType.getRemainingQuota(),
+            voucherType.getCampaign() == null ? null : voucherType.getCampaign().getId()
+        );
     }
 }
