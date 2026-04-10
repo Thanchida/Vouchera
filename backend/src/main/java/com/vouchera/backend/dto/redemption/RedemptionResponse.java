@@ -3,6 +3,7 @@ package com.vouchera.backend.dto.redemption;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import com.vouchera.backend.entity.Redemption;
 import com.vouchera.backend.dto.voucher.VoucherTypeResponse;
 import com.vouchera.backend.enums.RedemptionStatus;
 
@@ -53,5 +54,20 @@ public class RedemptionResponse {
 
     public RedemptionStatus getStatus() {
         return status;
+    }
+
+    public static RedemptionResponse fromEntity(Redemption redemption) {
+        if (redemption == null) {
+            return null;
+        }
+
+        return new RedemptionResponse(
+            redemption.getId(),
+            redemption.getUser() == null ? null : redemption.getUser().getId(),
+            VoucherTypeResponse.fromEntity(redemption.getVoucherType()),
+            redemption.getRedeemedAt(),
+            redemption.getUsedAt(),
+            redemption.getStatus()
+        );
     }
 }
