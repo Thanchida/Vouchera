@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import com.vouchera.backend.dto.company.CompanyResponse;
+import com.vouchera.backend.entity.Campaign;
 import com.vouchera.backend.enums.CampaignStatus;
 
 public class CampaignResponse {
@@ -60,5 +61,21 @@ public class CampaignResponse {
 
     public CompanyResponse getCompany() {
         return company;
+    }
+
+    public static CampaignResponse fromEntity(Campaign campaign) {
+        if (campaign == null) {
+            return null;
+        }
+
+        return new CampaignResponse(
+            campaign.getId(),
+            campaign.getName(),
+            campaign.getDescription(),
+            campaign.getStatus(),
+            campaign.getStartTime(),
+            campaign.getEndTime(),
+            CompanyResponse.fromEntity(campaign.getCompany())
+        );
     }
 }
