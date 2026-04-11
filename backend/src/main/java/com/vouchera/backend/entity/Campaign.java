@@ -76,9 +76,16 @@ public class Campaign {
     }
 
     public boolean isActiveAt(LocalDateTime now) {
-        return status == CampaignStatus.ACTIVE && 
-               !now.isBefore(startTime) && 
-               !now.isAfter(endTime);
+        return resolveLifecycleStatus(now) == CampaignStatus.ACTIVE;
+    }
+
+    public boolean syncLifecycleStatus(LocalDateTime now) {
+        CampaignStatus resolved = resolveLifecycleStatus(now);
+        if (status == resolved) {
+            return false;
+        }
+        status = resolved;
+        return true;
     }
 
     public void resume(LocalDateTime now) {
@@ -106,16 +113,35 @@ public class Campaign {
     }
 
     public boolean canBeEdited() {
-        return status == CampaignStatus.ACTIVE || status == CampaignStatus.PAUSED;
+        return status == CampaignStatus.PENDING || status == CampaignStatus.ACTIVE || status == CampaignStatus.PAUSED;
     }
 
     public void updateDetails(String name, String description, LocalDateTime startTime, LocalDateTime endTime) {
         if (!canBeEdited()) {
-            throw new IllegalStateException("Only ACTIVE or PAUSED campaigns can be edited");
+            throw new IllegalStateException("Only PENDING, ACTIVE or PAUSED campaigns can be edited");
         }
         setName(name);
         setDescription(description);
         setSchedule(startTime, endTime);
+    }
+
+    private CampaignStatus resolveLifecycleStatus(LocalDateTime now) {
+        if (now == null) {
+            throw new IllegalArgumentException("now cannot be null");
+        }
+        if (status == CampaignStatus.ENDED) {
+            return CampaignStatus.ENDED;
+        }
+        if (now.isAfter(endTime)) {
+            return CampaignStatus.ENDED;
+        }
+        if (now.isBefore(startTime)) {
+            return status == CampaignStatus.PAUSED ? CampaignStatus.PAUSED : CampaignStatus.PENDING;
+        }
+        if (status == CampaignStatus.PAUSED) {
+            return CampaignStatus.PAUSED;
+        }
+        return CampaignStatus.ACTIVE;
     }
 
     private void setSchedule(LocalDateTime startTime, LocalDateTime endTime) {
