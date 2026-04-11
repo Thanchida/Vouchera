@@ -1,11 +1,16 @@
 package com.vouchera.backend.service;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,7 +30,7 @@ import com.vouchera.backend.util.EmailNormalizer;
 
 @Service
 @Transactional
-public class UserService {
+public class UserService implements UserDetailsService {
 
     private final UserRepository userRepository;
     private final CompanyRepository companyRepository;
@@ -151,5 +156,19 @@ public class UserService {
         if (company.getCompanyStatus() != CompanyStatus.ACTIVE) {
             throw new ForbiddenException("Company must be ACTIVE");
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+        User user = userRepository
+            .findByEmail(EmailNormalizer.normalize(email))
+            .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
+
+        return new org.springframework.security.core.userdetails.User(
+            user.getEmail(),
+            user.getPassword(),
+            List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
+        );
     }
 }
