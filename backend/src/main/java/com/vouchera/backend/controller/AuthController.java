@@ -31,9 +31,12 @@ public class AuthController {
     private final AuthService authService;
     private final HttpSessionSecurityContextRepository securityContextRepository;
 
-    public AuthController(AuthService authService) {
+    public AuthController(
+        AuthService authService,
+        HttpSessionSecurityContextRepository securityContextRepository
+    ) {
         this.authService = authService;
-        this.securityContextRepository = new HttpSessionSecurityContextRepository();
+        this.securityContextRepository = securityContextRepository;
     }
 
     @PostMapping("/login")
