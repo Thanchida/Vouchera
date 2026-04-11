@@ -17,6 +17,7 @@ import com.vouchera.backend.entity.Company;
 import com.vouchera.backend.enums.CampaignStatus;
 import com.vouchera.backend.enums.CompanyStatus;
 import com.vouchera.backend.exception.BadRequestException;
+import com.vouchera.backend.exception.ConflictException;
 import com.vouchera.backend.exception.ForbiddenException;
 import com.vouchera.backend.exception.NotFoundException;
 import com.vouchera.backend.repository.CampaignRepository;
@@ -49,7 +50,7 @@ public class CampaignService {
 			.orElseThrow(() -> new NotFoundException("Company not found"));
 
 		if (company.getCompanyStatus() != CompanyStatus.ACTIVE) {
-			throw new IllegalStateException("Cannot create a campaign for a non-ACTIVE company");
+			throw new ConflictException("Cannot create a campaign for a non-ACTIVE company");
 		}
 
 		Campaign campaign = new Campaign(

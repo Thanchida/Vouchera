@@ -16,6 +16,7 @@ import com.vouchera.backend.entity.User;
 import com.vouchera.backend.entity.VoucherType;
 import com.vouchera.backend.enums.RedemptionStatus;
 import com.vouchera.backend.exception.BadRequestException;
+import com.vouchera.backend.exception.ConflictException;
 import com.vouchera.backend.exception.ForbiddenException;
 import com.vouchera.backend.exception.NotFoundException;
 import com.vouchera.backend.repository.RedemptionRepository;
@@ -64,7 +65,7 @@ public class RedemptionService {
 		try {
 			return RedemptionResponse.fromEntity(redemptionRepository.save(redemption));
 		} catch (DataIntegrityViolationException ex) {
-			throw new IllegalStateException("Duplicate redemption is not allowed", ex);
+			throw new ConflictException("Duplicate redemption is not allowed");
 		}
 	}
 

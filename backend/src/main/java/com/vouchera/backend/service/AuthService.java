@@ -10,8 +10,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.stereotype.Service;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 
 import com.vouchera.backend.dto.auth.AuthResponse;
 import com.vouchera.backend.dto.auth.CurrentUserInfo;
@@ -21,6 +19,7 @@ import com.vouchera.backend.enums.AccountStatus;
 import com.vouchera.backend.enums.Role;
 import com.vouchera.backend.exception.BadRequestException;
 import com.vouchera.backend.exception.ForbiddenException;
+import com.vouchera.backend.exception.UnauthorizedException;
 import com.vouchera.backend.repository.UserRepository;
 import com.vouchera.backend.util.EmailNormalizer;
 
@@ -45,10 +44,10 @@ public class AuthService {
 
         String normalizedEmail = EmailNormalizer.normalize(email);
         User user = userRepository.findByEmail(normalizedEmail)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password"));
+            .orElseThrow(() -> new UnauthorizedException("Invalid email or password"));
 
         if (!passwordEncoder.matches(password, user.getPassword())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+            throw new UnauthorizedException("Invalid email or password");
         }
 
         if (user.getAccountStatus() != AccountStatus.ACTIVE) {
@@ -101,15 +100,15 @@ public class AuthService {
     private User getCurrentUserEntity() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No authenticated user in context");
+            throw new UnauthorizedException("No authenticated user in context");
         }
 
         String principalName = authentication.getName();
         if (principalName == null || principalName.isBlank() || "anonymousUser".equals(principalName)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No authenticated user in context");
+            throw new UnauthorizedException("No authenticated user in context");
         }
 
         return userRepository.findByEmail(EmailNormalizer.normalize(principalName))
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+            .orElseThrow(() -> new UnauthorizedException("User not found"));
     }
 }
