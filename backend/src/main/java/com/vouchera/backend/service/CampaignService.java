@@ -1,6 +1,8 @@
 package com.vouchera.backend.service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -38,7 +40,8 @@ public class CampaignService {
 		String description,
 		LocalDateTime startTime,
 		LocalDateTime endTime) {
-		validateCreateWindow(startTime, LocalDateTime.now());
+		LocalDateTime now = LocalDateTime.now();
+		validateCreateWindow(startTime, now);
 
 		validateCampaignCreator(currentUser, companyId);
 
@@ -51,20 +54,22 @@ public class CampaignService {
 
 		Campaign campaign = new Campaign(
 			name.trim(), description.trim(), company, 
-			startTime, endTime, CampaignStatus.ACTIVE
+			startTime, endTime, resolveInitialStatus(startTime, now)
 		);
 
 		return CampaignResponse.fromEntity(campaignRepository.save(campaign));
 	}
 
-	@Transactional(readOnly = true)
 	public Page<CampaignResponse> listCampaigns(Pageable pageable) {
-		return campaignRepository.findAll(pageable).map(CampaignResponse::fromEntity);
+		Page<Campaign> campaigns = campaignRepository.findAll(pageable);
+		syncStatuses(campaigns.getContent(), LocalDateTime.now());
+		return campaigns.map(CampaignResponse::fromEntity);
 	}
 
-	@Transactional(readOnly = true)
 	public CampaignResponse getCampaignById(UUID campaignId) {
-		return CampaignResponse.fromEntity(getCampaignEntityById(campaignId));
+		Campaign campaign = getCampaignEntityById(campaignId);
+		syncStatus(campaign, LocalDateTime.now());
+		return CampaignResponse.fromEntity(campaign);
 	}
 
 	private Campaign getCampaignEntityById(UUID campaignId) {
@@ -72,15 +77,19 @@ public class CampaignService {
 			.orElseThrow(() -> new NotFoundException("Campaign not found"));
 	}
 
-	@Transactional(readOnly = true)
 	public Page<CampaignResponse> listActiveCampaigns(LocalDateTime now, Pageable pageable) {
 		LocalDateTime current = requireNow(now);
-		return campaignRepository
-			.findByStatusAndStartTimeBeforeAndEndTimeAfter(CampaignStatus.ACTIVE, current, current, pageable)
-			.map(CampaignResponse::fromEntity);
+		Page<Campaign> campaigns = campaignRepository
+			.findByStatusInAndStartTimeLessThanEqualAndEndTimeGreaterThanEqual(
+				List.of(CampaignStatus.PENDING, CampaignStatus.ACTIVE),
+				current,
+				current,
+				pageable
+			);
+		syncStatuses(campaigns.getContent(), current);
+		return campaigns.map(CampaignResponse::fromEntity);
 	}
 
-	@Transactional(readOnly = true)
 	public Page<CampaignResponse> listCompanyCampaigns(UUID companyId, CampaignStatus status, Pageable pageable) {
 		Page<Campaign> campaigns;
 		if (status == null) {
@@ -88,6 +97,7 @@ public class CampaignService {
 		} else {
 			campaigns = campaignRepository.findByCompanyIdAndStatus(companyId, status, pageable);
 		}
+		syncStatuses(campaigns.getContent(), LocalDateTime.now());
 		return campaigns.map(CampaignResponse::fromEntity);
 	}
 
@@ -134,6 +144,7 @@ public class CampaignService {
 
 	private Campaign getManagedCampaign(UUID campaignId, CurrentUserInfo currentUser) {
 		Campaign campaign = getCampaignEntityById(campaignId);
+		syncStatus(campaign, LocalDateTime.now());
 
 		validateCampaignManager(currentUser, campaign);
 		return campaign;
@@ -176,6 +187,28 @@ public class CampaignService {
 	private void validateCreateWindow(LocalDateTime startTime, LocalDateTime now) {
 		if (startTime.isBefore(now)) {
 			throw new BadRequestException("Campaign startTime cannot be in the past");
+		}
+	}
+
+	private CampaignStatus resolveInitialStatus(LocalDateTime startTime, LocalDateTime now) {
+		return startTime.isAfter(now) ? CampaignStatus.PENDING : CampaignStatus.ACTIVE;
+	}
+
+	private void syncStatuses(List<Campaign> campaigns, LocalDateTime now) {
+		List<Campaign> changedCampaigns = new ArrayList<>();
+		for (Campaign campaign : campaigns) {
+			if (campaign.syncLifecycleStatus(now)) {
+				changedCampaigns.add(campaign);
+			}
+		}
+		if (!changedCampaigns.isEmpty()) {
+			campaignRepository.saveAll(changedCampaigns);
+		}
+	}
+
+	private void syncStatus(Campaign campaign, LocalDateTime now) {
+		if (campaign.syncLifecycleStatus(now)) {
+			campaignRepository.save(campaign);
 		}
 	}
 

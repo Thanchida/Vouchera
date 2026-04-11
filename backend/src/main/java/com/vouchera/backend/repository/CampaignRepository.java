@@ -30,4 +30,11 @@ public interface CampaignRepository extends JpaRepository<Campaign, UUID> {
         Pageable pageable
     );
 
+    Page<Campaign> findByStatusInAndStartTimeLessThanEqualAndEndTimeGreaterThanEqual(
+        List<CampaignStatus> statuses,
+        LocalDateTime now1,
+        LocalDateTime now2,
+        Pageable pageable
+    );
+
 }
