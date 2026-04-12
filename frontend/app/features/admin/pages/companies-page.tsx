@@ -96,8 +96,21 @@ export function AdminCompaniesPage() {
 
     try {
       setUpdatingCompanyId(company.id);
-      await updateCompanyStatus(company.id, nextStatus);
-      await loadCompanies(page);
+      const updatedCompany = await updateCompanyStatus(company.id, nextStatus);
+      setCompanies(prev =>
+        prev.map(item =>
+          item.id === company.id
+            ? {
+                ...item,
+                companyStatus: updatedCompany.companyStatus,
+              }
+            : item
+        )
+      );
+      setCompanyStatusDrafts(prev => ({
+        ...prev,
+        [company.id]: updatedCompany.companyStatus,
+      }));
       toastSuccess("Company status updated successfully.");
     } catch (err) {
       toastError(err instanceof Error ? err.message : "Failed to update company status.");
