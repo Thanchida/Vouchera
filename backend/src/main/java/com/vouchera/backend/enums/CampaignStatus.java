@@ -1,7 +1,7 @@
 package com.vouchera.backend.enums;
 
 public enum CampaignStatus {
-    DRAFT,
+    PENDING,
     ACTIVE,
     PAUSED,
     ENDED
