@@ -6,8 +6,10 @@ import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -24,9 +26,11 @@ import com.vouchera.backend.service.AuthService;
 import com.vouchera.backend.service.CampaignService;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 
 
 @RestController
+@Validated
 @RequestMapping("/api")
 public class CampaignController {
 
@@ -121,6 +125,15 @@ public class CampaignController {
 	) {
 		var currentUser = authService.getCurrentUserInfo();
 		return ResponseEntity.ok(campaignService.endCampaign(campaignId, currentUser));
+	}
+
+	@PatchMapping("/campaigns/{campaignId}/status")
+	public ResponseEntity<CampaignResponse> updateCampaignStatus(
+		@PathVariable UUID campaignId,
+		@RequestParam @NotNull CampaignStatus status
+	) {
+		var currentUser = authService.getCurrentUserInfo();
+		return ResponseEntity.ok(campaignService.updateCampaignStatus(campaignId, currentUser, status));
 	}
 
 	@DeleteMapping("/campaigns/{campaignId}")

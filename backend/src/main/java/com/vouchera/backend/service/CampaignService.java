@@ -120,6 +120,44 @@ public class CampaignService {
 		return CampaignResponse.fromEntity(campaignRepository.save(campaign));
 	}
 
+	public CampaignResponse updateCampaignStatus(UUID campaignId, CurrentUserInfo currentUser, CampaignStatus newStatus) {
+		Campaign campaign = getManagedCampaign(campaignId, currentUser);
+		LocalDateTime now = LocalDateTime.now();
+
+		CampaignStatus currentStatus = campaign.getStatus();
+		
+		switch (newStatus) {
+			case PENDING:
+				throw new ConflictException("Campaign status cannot be manually changed to PENDING. It becomes PENDING automatically based on schedule.");
+			case ACTIVE:
+				if (currentStatus == CampaignStatus.PENDING) {
+					campaign.syncLifecycleStatus(now);
+					if (campaign.getStatus() != CampaignStatus.ACTIVE) {
+						throw new ConflictException("Campaign cannot be activated before its start time");
+					}
+				} else if (currentStatus == CampaignStatus.PAUSED) {
+					campaign.resume(now);
+				} else if (currentStatus != CampaignStatus.ACTIVE) {
+					throw new ConflictException("Cannot transition from " + currentStatus + " to ACTIVE");
+				}
+				break;
+			case PAUSED:
+				if (currentStatus != CampaignStatus.ACTIVE) {
+					throw new ConflictException("Only ACTIVE campaigns can be paused");
+				}
+				campaign.pause();
+				break;
+			case ENDED:
+				if (currentStatus == CampaignStatus.ENDED) {
+					throw new ConflictException("Campaign is already ended");
+				}
+				campaign.end();
+				break;
+		}
+
+		return CampaignResponse.fromEntity(campaignRepository.save(campaign));
+	}
+
 	public CampaignResponse updateCampaign(UUID campaignId, 
 		CurrentUserInfo currentUser,
 		String name,
@@ -134,6 +172,23 @@ public class CampaignService {
 	public void deleteCampaign(UUID campaignId, CurrentUserInfo currentUser) {
 		Campaign campaign = getManagedCampaign(campaignId, currentUser);
 		campaignRepository.delete(campaign);
+	}
+
+	public int syncAllLifecycleStatuses(LocalDateTime now) {
+		LocalDateTime current = requireNow(now);
+		List<Campaign> campaigns = campaignRepository.findByStatusIn(
+			List.of(CampaignStatus.PENDING, CampaignStatus.ACTIVE, CampaignStatus.PAUSED)
+		);
+		List<Campaign> changedCampaigns = new ArrayList<>();
+		for (Campaign campaign : campaigns) {
+			if (campaign.syncLifecycleStatus(current)) {
+				changedCampaigns.add(campaign);
+			}
+		}
+		if (!changedCampaigns.isEmpty()) {
+			campaignRepository.saveAll(changedCampaigns);
+		}
+		return changedCampaigns.size();
 	}
 
 	private LocalDateTime requireNow(LocalDateTime now) {
